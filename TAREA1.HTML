@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Captura de Foto con Voz</title>
+  <style>
+    body {
+      background: lightgrey;
+      color: black;
+      padding: 2rem;
+    }
+    h1 { 
+      text-align: center;
+      margin-top: 0; 
+    }
+    .contenedor {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 2rem;
+      margin-top: 1.5rem;
+    }
+    video, img, canvas {
+      width: 100%;
+      max-width: 400px;
+      border: 2px solid black;
+      border-radius: 5px;
+      display: block;
+    }
+    .panel-derecho {
+      text-align: center;
+    }
+    .botones {
+      margin-top: 1rem;
+      text-align: center;
+    }
+    button {
+      padding: 0.7rem 1.4rem;
+      font-size: 1rem;
+      border: none;
+      border-radius: 5px;
+      background: #0cf;
+      color: black;
+      cursor: pointer;
+      margin: 0.5rem;
+    }
+    button:disabled {
+      background: #51dfdf;
+      cursor: not-allowed;
+    }
+    #estado {
+      margin-top: 1rem;
+      font-size: 0.9rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h1>Di "foto" para capturar</h1>
+
+  <div class="contenedor">
+    <video id="videoCamara" autoplay playsinline></video>
+    <div class="panel-derecho">
+      <canvas id="lienzo"></canvas>
+      <img id="fotoCapturada" alt="Tu foto aparecerá aquí">
+      <div class="botones">
+        <button id="botonDescargar" disabled>Descargar foto</button>
+      </div>
+    </div>
+  </div>
+
+  <p id="estado">Iniciando cámara y reconocimiento de voz...</p>
+
+  <script>
+    const videoCamara      = document.getElementById('videoCamara');
+    const lienzo           = document.getElementById('lienzo');
+    const contextoLienzo   = lienzo.getContext('2d');
+    const fotoCapturada    = document.getElementById('fotoCapturada');
+    const botonDescargar   = document.getElementById('botonDescargar');
+    const textoEstado      = document.getElementById('estado');
+
+    let fotoEnMemoria = null;
+
+    navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+      .then(stream => {
+        videoCamara.srcObject = stream;
+        iniciarReconocimientoVoz();
+      })
+      .catch(err => {
+        textoEstado.textContent = 'Error al acceder a la cámara: ' + err;
+      });
+
+    function iniciarReconocimientoVoz() {
+      const ReconocimientoVoz = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!ReconocimientoVoz) {
+        textoEstado.textContent = 'Este navegador no soporta reconocimiento de voz';
+        return;
+      }
+      const reconocimiento = new ReconocimientoVoz();
+      reconocimiento.lang = 'es-ES';
+      reconocimiento.continuous = true;
+      reconocimiento.interimResults = false;
+      reconocimiento.onresult = evento => {
+        const palabraEscuchada = evento.results[evento.results.length - 1][0].transcript.trim().toLowerCase();
+        if (palabraEscuchada.includes('foto')) tomarFoto();
+      };
+      reconocimiento.onerror = e => textoEstado.textContent = 'Error de voz: ' + e.error;
+      reconocimiento.onend = () => setTimeout(() => reconocimiento.start(), 1000);
+      reconocimiento.start();
+      textoEstado.textContent = 'Escuchando… di "foto"';
+    }
+
+    function tomarFoto() {
+      lienzo.width  = videoCamara.videoWidth;
+      lienzo.height = videoCamara.videoHeight;
+      contextoLienzo.drawImage(videoCamara, 0, 0);
+      fotoEnMemoria = lienzo.toDataURL('image/png');
+      fotoCapturada.src = fotoEnMemoria;
+      fotoCapturada.style.width = lienzo.width + "px";
+      fotoCapturada.style.height = lienzo.height + "px";
+      botonDescargar.disabled = false;
+      document.body.style.backgroundColor = 'white';
+      setTimeout(() => {
+        document.body.style.backgroundColor = 'lightgrey';
+      }, 150);
+      textoEstado.textContent = 'Foto capturada. Pulsa "Descargar foto" para guardarla.';
+    }
+
+    botonDescargar.onclick = () => {
+      if (!fotoEnMemoria) return;
+      const enlace = document.createElement('a');
+      enlace.download = `foto_${Date.now()}.png`;
+      enlace.href = fotoEnMemoria;
+      enlace.click();
+    };
+  </script>
+</body>
+</html>
